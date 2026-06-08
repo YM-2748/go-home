@@ -479,6 +479,22 @@
 
 </div>
 
+    <!-- 경강선-GTX 매칭 시간표 -->
+    <div>
+        <div class="ios-card-title">경강선 · GTX 연계 시간표</div>
+        <div class="ios-card">
+            <div class="optimal-header">
+                <div class="optimal-header-row">
+                    <div class="optimal-title">🗓️ 전체 시간표</div>
+                    <span class="optimal-badge">판교→성남→GTX</span>
+                </div>
+                <div class="optimal-sub">사무실 출발 → 경강선(판교) → GTX(성남) 환승 기준</div>
+            </div>
+            <div id="timetableArea"></div>
+        </div>
+    </div>
+
+
 <script>
     const gyeonggangTimetable = [
         "09:02","09:14","09:25","09:38","09:50","10:04","10:18","10:36","10:54","11:14","11:33","11:55",
@@ -537,6 +553,7 @@
         let ggList = gyeonggangTimetable.map(t => parseTime(t, baseDate));
         let gtxList = gtxTimetable.map(t => parseTime(t, baseDate));
 
+        // 조건 없이 경강선 전체 기준으로 사무실 출발시간 계산
         let allWindows = [];
         for (let gg of ggList) {
             let leave = new Date(gg.getTime() - 10*60000);
@@ -545,11 +562,10 @@
             let gtx = gtxList.find(t => t >= readyGTX);
             if (!gtx) continue;
             let snWait = Math.round((gtx - arrSN) / 60000);
-            if (snWait < 10 && snWait < 15) {
-                let minsFromInput = Math.round((leave - startTime) / 60000);
-                let eta = new Date(gtx.getTime() + 31*60000);
-                allWindows.push({ leave, gg, gtx, snWait, totalWait: snWait, minsFromInput, eta });
-            }
+            let minsFromInput = Math.round((leave - startTime) / 60000);
+            let eta = new Date(gtx.getTime() + 31*60000);
+            let dur = Math.round((eta - leave) / 60000);
+            allWindows.push({ leave, gg, gtx, snWait, minsFromInput, eta, dur });
         }
 
         if (!showBothSides) {
@@ -558,44 +574,50 @@
             }
             let next = allWindows.find(w => w.minsFromInput > 0);
             if (next) {
-                return `<div class="recommend-box">💡 다음 최적 👉 <strong>${formatTime(next.leave)} 출발</strong><br>판교 바로탑승 → 성남 대기 ${next.snWait}분 → GTX ${formatTime(next.gtx)} → 🏠 ${formatTime(next.eta)}</div>`;
+                return `<div class="recommend-box">💡 다음 추천 👉 <strong>${formatTime(next.leave)} 출발</strong><br>경강선 ${formatTime(next.gg)} → 성남 대기 ${next.snWait}분 → GTX ${formatTime(next.gtx)} → 🏠 ${formatTime(next.eta)}</div>`;
             }
             return '';
         }
 
-        let before = allWindows.filter(w => w.minsFromInput < 0 && w.minsFromInput >= -90).slice(-3);
-        let after  = allWindows.filter(w => w.minsFromInput > 0 && w.minsFromInput <= 90).slice(0,3);
+        // 선택시간 직전 3개, 직후 3개 (경강선 출발 기준, 조건 없음)
+        let before = allWindows.filter(w => w.minsFromInput < 0).slice(-3);
+        let after  = allWindows.filter(w => w.minsFromInput >= 0).slice(0, 3);
 
         let html = `<div style="margin-top:12px;">
-            <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px;">⏰ 입력시간 전후 최적 타이밍</div>`;
+            <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #eee;">⏰ 선택시간 전후 출발 추천 (경강선 기준)</div>`;
 
-        if (pangyoWait < 5 && seongnamWait < 10) {
-            html += `<div class="win-card" style="background:#e8faf0;border:1.5px solid #22c55e;">
-                <div class="win-card-top"><span style="color:#15803d;">✅ ${formatTime(startTime)} — 이미 최적!</span></div>
-                <div style="color:#555;font-size:11px;">판교 ${pangyoWait}분 + 성남 ${seongnamWait}분 = 총 ${totalWait}분</div>
-            </div>`;
-        } else if (!before.length && !after.length) {
-            html += `<div style="text-align:center;font-size:12px;color:var(--text-sub);padding:8px;">이 시간대 주변 최적 창문 없음</div>`;
+        if (!before.length && !after.length) {
+            html += `<div style="text-align:center;font-size:12px;color:var(--text-sub);padding:8px;">이 시간대 주변 경강선 없음</div>`;
         }
 
-        for (let w of before) {
-            html += `<div class="win-card" style="background:#eff6ff;border:1px solid #bfdbfe;">
+        function winCard(w, isBefore) {
+            const diff = Math.abs(w.minsFromInput);
+            const label = isBefore
+                ? `⬅️ ${diff}분 일찍 · <strong>${formatTime(w.leave)} 출발</strong>`
+                : (w.minsFromInput === 0
+                    ? `✅ 동일 시간 · <strong>${formatTime(w.leave)} 출발</strong>`
+                    : `➡️ ${diff}분 후 · <strong>${formatTime(w.leave)} 출발</strong>`);
+            const bg     = isBefore ? '#eff6ff' : (w.minsFromInput === 0 ? '#e8faf0' : '#fafafa');
+            const border = isBefore ? '#bfdbfe' : (w.minsFromInput === 0 ? '#22c55e' : '#e5e8eb');
+            const lc     = isBefore ? '#1d4ed8' : (w.minsFromInput === 0 ? '#15803d' : '#374151');
+            const wc     = w.snWait <= 3 ? '#16a34a' : w.snWait <= 8 ? '#d97706' : '#dc2626';
+            return `<div class="win-card" style="background:${bg};border:1px solid ${border};margin-bottom:8px;">
                 <div class="win-card-top">
-                    <span style="color:#1d4ed8;">⬅️ ${Math.abs(w.minsFromInput)}분 일찍 나가면 · <strong>${formatTime(w.leave)} 출발</strong></span>
+                    <span style="color:${lc};">${label}</span>
                     <span style="color:var(--text-sub);font-size:11px;">🏠 ${formatTime(w.eta)}</span>
                 </div>
-                <div style="color:#555;font-size:11px;">판교 바로탑승 → 성남 대기 <span style="color:${w.snWait<5?'#16a34a':'#d97706'};font-weight:600;">${w.snWait}분</span> → GTX ${formatTime(w.gtx)}</div>
-            </div>`;
-        }
-        for (let w of after) {
-            html += `<div class="win-card" style="background:#fafafa;border:1px solid #e5e8eb;">
-                <div class="win-card-top">
-                    <span style="color:#374151;">➡️ ${w.minsFromInput}분 후 나가면 · <strong>${formatTime(w.leave)} 출발</strong></span>
-                    <span style="color:var(--text-sub);font-size:11px;">🏠 ${formatTime(w.eta)}</span>
+                <div style="color:#555;font-size:11px;line-height:1.9;">
+                    경강선 <span class="tag tag-train">${formatTime(w.gg)}</span> →
+                    성남 대기 <span style="color:${wc};font-weight:700;">${w.snWait}분</span> →
+                    GTX <span class="tag tag-train">${formatTime(w.gtx)}</span>
+                    <span style="float:right;background:#f0f0f0;padding:1px 7px;border-radius:10px;font-size:10px;color:#555;">총 ${w.dur}분</span>
                 </div>
-                <div style="color:#555;font-size:11px;">판교 바로탑승 → 성남 대기 <span style="color:${w.snWait<5?'#16a34a':'#d97706'};font-weight:600;">${w.snWait}분</span> → GTX ${formatTime(w.gtx)}</div>
             </div>`;
         }
+
+        for (let w of before) html += winCard(w, true);
+        for (let w of after)  html += winCard(w, false);
+
         html += `</div>`;
         return html;
     }
@@ -786,6 +808,53 @@
 
     computeOptimalCard();
     setInterval(computeOptimalCard, 60000);
+
+    // 경강선-GTX 연계 시간표 렌더링
+    function renderTimetable() {
+        const baseDate = new Date();
+        const ggList   = gyeonggangTimetable.map(t => parseTime(t, baseDate));
+        const gtxList  = gtxTimetable.map(t => parseTime(t, baseDate));
+
+        let rows = [];
+        for (let gg of ggList) {
+            const leave    = new Date(gg.getTime() - 10*60000);
+            const arrSN    = new Date(gg.getTime() + 2*60000);
+            const readyGTX = new Date(arrSN.getTime() + 2*60000);
+            const gtx      = gtxList.find(t => t >= readyGTX);
+            if (!gtx) continue;
+            const snWait   = Math.round((gtx - arrSN) / 60000);
+            const eta      = new Date(gtx.getTime() + 31*60000);
+            const dur      = Math.round((eta - leave) / 60000);
+            rows.push({ leave, gg, arrSN, gtx, snWait, eta, dur });
+        }
+
+        let html = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;font-size:10px;font-weight:700;
+            color:var(--text-sub);padding:8px 14px;border-bottom:1px solid var(--separator);text-align:center;">
+            <div>사무실 출발</div><div>경강선</div><div>GTX(대기)</div><div>집 도착</div>
+        </div>`;
+
+        for (let r of rows) {
+            const wc  = r.snWait <= 3 ? "#16a34a" : r.snWait <= 8 ? "#d97706" : "#dc2626";
+            const wbg = r.snWait <= 3 ? "#e8faf0" : r.snWait <= 8 ? "#fff4e5" : "#fff0f0";
+            html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;padding:9px 14px;
+                border-bottom:0.5px solid var(--separator);text-align:center;align-items:center;font-size:12px;">
+                <div style="font-weight:600;font-size:11px;">${formatTime(r.leave)}</div>
+                <div><span style="background:#ff9500;color:white;border-radius:5px;padding:2px 6px;font-size:11px;font-weight:700;">${formatTime(r.gg)}</span></div>
+                <div>
+                    <span style="background:#ff9500;color:white;border-radius:5px;padding:2px 6px;font-size:11px;font-weight:700;">${formatTime(r.gtx)}</span>
+                    <div style="font-size:10px;color:${wc};background:${wbg};border-radius:4px;padding:1px 4px;margin-top:2px;display:inline-block;">대기 ${r.snWait}분</div>
+                </div>
+                <div>
+                    <div style="font-weight:700;color:var(--primary);font-size:12px;">${formatTime(r.eta)}</div>
+                    <div style="font-size:10px;color:var(--text-sub);">${r.dur}분</div>
+                </div>
+            </div>`;
+        }
+
+        document.getElementById("timetableArea").innerHTML = html;
+    }
+
+    renderTimetable();
 </script>
 </body>
 </html>
