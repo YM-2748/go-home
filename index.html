@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="color-scheme" content="light">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>퇴근 내비</title>
     <style>
@@ -24,38 +25,38 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
-            background: var(--bg);
-            color: var(--text);
+            background: #f2f2f7 !important;
+            color: #000000 !important;
             margin: 0;
             padding: 0;
             min-height: 100vh;
             -webkit-font-smoothing: antialiased;
+            color-scheme: light;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #f2f2f7 !important;
+                --card: #ffffff !important;
+                --text: #000000 !important;
+                --text-sub: #6d6d72 !important;
+                --separator: #c6c6c8 !important;
+            }
+            body { background: #f2f2f7 !important; color: #000000 !important; }
+            .ios-card { background: #ffffff !important; }
+            .scroll-content { background: #f2f2f7 !important; }
+            .nav-bar { background: #f2f2f7 !important; }
+            input[type="time"] { background: #e5e5ea !important; color: #000000 !important; }
         }
 
         /* Status Bar */
-        .status-bar {
-            background: var(--card);
-            height: 44px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 20px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            border-bottom: 0.5px solid var(--separator);
-        }
-        .status-time { font-size: 15px; font-weight: 600; }
-        .status-icons { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+
 
         /* Navigation Bar */
         .nav-bar {
-            background: rgba(242, 242, 247, 0.94);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: #f2f2f7;
             padding: 8px 20px 12px;
             position: sticky;
-            top: 44px;
+            top: 0;
             z-index: 99;
             border-bottom: 0.5px solid var(--separator);
         }
@@ -391,16 +392,6 @@
 </head>
 <body>
 
-<!-- Status Bar -->
-<div class="status-bar">
-    <span class="status-time" id="statusTime">--:--</span>
-    <div class="status-icons">
-        <span>●●●</span>
-        <span>WiFi</span>
-        <span>🔋</span>
-    </div>
-</div>
-
 <!-- Nav Bar -->
 <div class="nav-bar">
     <div class="nav-title">🏠 퇴근 내비</div>
@@ -416,7 +407,10 @@
         <div class="ios-card action-card">
             <button class="btn-now" onclick="runCommute('now')">⚡ 지금 바로 퇴근</button>
             <div class="time-row">
-                <input type="time" id="customTimeInput">
+                <div style="flex:1;position:relative;">
+                    <input type="time" id="customTimeInput" style="width:100%;">
+                    <span id="timeHint" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:12px;color:#aaa;pointer-events:none;">시간선택 터치!</span>
+                </div>
                 <button class="btn-custom" onclick="runCommute('custom')">계산</button>
             </div>
         </div>
@@ -506,16 +500,6 @@
 
     let bestNowMin = null;
     let bestCustomMin = null;
-
-    // 상태바 시계
-    function updateStatusTime() {
-        const now = new Date();
-        const h = String(now.getHours()).padStart(2,'0');
-        const m = String(now.getMinutes()).padStart(2,'0');
-        document.getElementById('statusTime').textContent = `${h}:${m}`;
-    }
-    updateStatusTime();
-    setInterval(updateStatusTime, 10000);
 
     function parseTime(timeStr, baseDate) {
         let [hrs, mins] = timeStr.split(':').map(Number);
@@ -718,10 +702,13 @@
             bestCustomMin = result.bestMin;
         }
         updateDashboard();
-        // scroll to result
+        // scroll to result - offset for sticky nav-bar
         setTimeout(() => {
             const el = mode === 'now' ? document.getElementById('resNowWrap') : document.getElementById('resCustomWrap');
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const navBar = document.querySelector('.nav-bar');
+            const navH = navBar ? navBar.offsetHeight : 80;
+            const top = el.getBoundingClientRect().top + window.pageYOffset - navH - 8;
+            window.scrollTo({ top, behavior: 'smooth' });
         }, 100);
     }
 
@@ -855,6 +842,9 @@
     }
 
     renderTimetable();
+    document.getElementById('customTimeInput').addEventListener('change', function() {
+        document.getElementById('timeHint').style.display = this.value ? 'none' : 'block';
+    });
 </script>
 </body>
 </html>
